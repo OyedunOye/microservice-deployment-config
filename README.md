@@ -54,3 +54,9 @@ kubectl get all -n microservices
 
 **Note:** A config template which I used to set up configuration for each of the microservice's Deployment and Service is saved in config-template.yaml
 
+## Screenshots
+![Linode Cluster Nodes](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207173/lke-node_d6l8s2.png)
+![create deployments and services](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207886/config-apply_hzacaf.png)
+![pods created](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207883/pods_created_rthfxf.png)
+![services created](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207919/services_created_ud3t5n.png)
+![app's frontend in browser](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207555/app-in-browser_krtjju.png)
