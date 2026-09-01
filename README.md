@@ -1,62 +1,127 @@
 
-# Deploy Microservices Application in Akamai's Managed Linode Kubernetes Engine (LKE)
+# Create Helm Chart for Microservices
+Improving on the deployed microservice application where individual deployment and services was configured for each microservice, a blueprint could be created for Deployment and another for Service with placeholders for value variables. Helm charts serve this purpose. A default values.yaml file can hold the default variable values and these can be overwritten by providing new values for the variables when reusing the same helm chart for different microservices.
 
-This project was focused on configuration of configurations for deploying a fictitious online shopping application which is composed of 11 microservices in LKE cluster. The microservices application deployed here is hosted on this [github repo](https://github.com/techworld-with-nana/microservices-demo.git).
+For this application, 10 of 11 microservices have similar configuration and will share an helm chart and a second helm chart will be created for redis because its configurations are very different.
 
-## Steps
-- Gather the required info to deploy the application:
-    1. What microservices need to be deployed?
-    2. Which microservices talk to other microservices, and how do they communicate?
-    3. Which database is used in this application?
-    4. On which port does each microservice run?
-    5. What are the environment variables required in each microservice for them to function properly?
-- Create a Deployment and Service configuration for each of the microservices. **Note: This has been set up in the config.yaml file in this repo.**
-All the config for each of the microservices are consolidated into a single config file.
-- Prepare a LKE cluster where the microservices will be deployed as follows:
-    1. Go to Akamai Cloud Services, from the left sidebar, choose Kubernetes.
-    2. Fill in cluster label (as desired), Region, k8s version.
-    3. Choose the type of Linode, in my case, 3 2GB, 1 CPU shared CPU Linode and create cluster.
-- When the nodes are provisioned and running, download the kubeconfig file from Akamai's cloud for the cluster.
-- Move the file into ~/.kube directory.
+## Steps to Create Helm Chart
+- Create helm chart directory with `helm create <chart_name>` command in charts folder:
 ```bash
-cp /mnt/c/Users/<username>/Download/kubeconfig.yaml ~/.kube/akamai-lke.yaml
+helm create microservice
+helm create redis
 ```
-- Backup the current config file
+The created microservice directory contain many auto generted files and folders, clean them up leaving the below folder structure. The contents of the template files and values.yaml was cleared to start from a clean slate. 
+```
+charts/
+├── microservice/
+│   ├── .helmignore
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   ├── charts/               (empty)
+│   └── templates/
+│       ├── deployment.yaml
+│       └── service.yaml
+└── redis/
+    ├── .helmignore
+    ├── Chart.yaml
+    ├── values.yaml
+    ├── charts/               (empty)
+    └── templates/
+        ├── deployment.yaml
+        └── service.yaml
+```
+- Create a basic template file for a Deployment and Service in their respective template files, setting variables with placeholder syntax where needed. Sample variable syntax(**Note that the variableName must follow the camelcase naming convention**):
 ```bash
-cp ~/.kube/config ~/.kube/config.bak
+{{ .Values.variableName}}
 ```
-- Combine the new cluster's config with the existing cluster configurations in ~/.kube/config
+The deployment templates implements best practices to improve on the previous service configuration including:
+    1. liveness and readiness probe configuration
+    2. resources request and request limit for each container
+    3. the entrypoint to the cluster switched from NodePort to LoadBalancer to protect the cluster and minimize attack surface
+- Configure default values in values.yaml within each helm chart directory, these would be overwritten by values.yaml value supplied when creating each microservice using this chart. The third way of suppling values to variables is with parameters passed with `--set` flag.
+Dynamic environment variables be set as follows for single env variable:
 ```bash
-KUBECONFIG=~/.kube/config:~/.kube/akamai-lke.yaml kubectl config view --flatten > ~/.kube/config_merged
+- name : {{ .Values.containerEnvVar.name }}
+  value: {{ .Values.containerEnvVar.value }}
 ```
-- Override the ~/.kube/config with updated config consisting of all k8s cluster configurations and restrict the permissions on the file.
-```bash 
-mv ~/.kube/config_merged ~/.kube/config
-chmod 600 ~/.kube/config
-```
-- Now it is possible to switch between contexts and execute kubectl commands in the desired cluster by choosing the context. Set current context to akamai's cluster.
-```bash 
-kubectl config use-context lke-context
-```
-- Create a microservices namespace
-```bash 
-kubectl create namespace microservices
-```
-- Create the deployments and services for the microservice application by applying the config file in this project in `microservices` namepace:
-```bash 
-kubectl apply -f microservice-deployment-config/config.yaml -n microservices
-```
-- Inspect all resources created using the command:
+And for an array, the syntax is:
 ```bash
-kubectl get all -n microservices
+{{- range Values.containerEnvVar}}
+- name : {{ .name }}
+  value: {{ .value }}
+{{- end}}
 ```
-- Access frontend (entry point into this application) at `any_node_ip:30007`
+- Create a values directory outside the helm repo. This is where a values file for each microservices is created with values for the variable which Override the default values in helm repo's values.yaml.
+- Validate  that the values.yaml to override the default is correct using the command to view the yaml output of final template file:
+```bash
+pwd  ==> microservice-deployment-config/
+helm template -f vlues/<actual_values.yaml> charts/<chart_name>
+```
+- Another way to verify the yaml syntax is with `--dry-run` flag:
+```bash
+# syntax
+helm install --dry-run -f values/<actual_values.yaml> <release_name> charts/chart_name
 
-**Note:** A config template which I used to set up configuration for each of the microservice's Deployment and Service is saved in config-template.yaml
+# actual example
+helm install --dry-run -f values/adservice-values.yaml adservice charts/microservice
+```
+- Verify no linting issue with:
+```bash 
+# syntax
+helm lint -f values/<actual_values.yaml> charts/chart_name
 
-## Screenshots
-![Linode Cluster Nodes](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207173/lke-node_d6l8s2.png)
-![create deployments and services](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207886/config-apply_hzacaf.png)
-![pods created](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207883/pods_created_rthfxf.png)
-![services created](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207919/services_created_ud3t5n.png)
-![app's frontend in browser](https://res.cloudinary.com/dpav6x91z/image/upload/v1788207555/app-in-browser_krtjju.png)
+# actual example
+helm lint -f values/adservice-values.yaml charts/microservice
+```
+- Create a namespace for the resources (optional):
+```bash
+kubectl create ns microservices
+```
+- Deploy a service into a namespace other than default with:
+```bash
+helm install -f values/<actual_values.yaml> <release_name> charts/chart_name -n microservices
+
+# actual example
+helm install -f values/adservice-values.yaml adservice charts/microservice -n microservices
+```
+- Check the installed helm charts with:
+```bash
+helm ls
+```
+- Final project structure
+```
+microservice-deployment-config/
+├── .gitignore
+├── README.md
+├── config.yaml             # config without helm chart
+├── charts/
+│   ├── microservice/
+│   │   ├── .helmignore
+│   │   ├── Chart.yaml
+│   │   ├── values.yaml
+│   │   ├── charts/               (empty)
+│   │   └── templates/
+│   │       ├── deployment.yaml
+│   │       └── service.yaml
+│   └── redis/
+│       ├── .helmignore
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       ├── charts/               (empty)
+│       └── templates/
+│           ├── deployment.yaml
+│           └── service.yaml
+└── values/
+    ├── redis-cart-values.yaml
+    ├── adservice-values.yaml
+    ├── cart-service-values.yaml
+    ├── checkout-service-values.yaml
+    ├── currency-service-values.yaml
+    ├── email-service-values.yaml
+    ├── frontend-service-values.yaml
+    ├── payment-service-values.yaml
+    ├── product-catalog-service-values.yaml
+    ├── recommendation-service-values.yaml
+    └── shipping-service-values.yaml
+
+```
