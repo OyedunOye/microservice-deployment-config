@@ -1,3 +1,7 @@
+helmDefaults:
+ namespace: microservices
+ createNamespace: true
+
 releases:
   - name: rediscart
     chart: charts/redis

@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: {{ .Values.appName}}
 spec:
+  securityContext:
+    runAsNonRoot: true
   replicas: {{ .Values.appReplicas}}
   selector:
     matchLabels:
@@ -17,6 +19,8 @@ spec:
           image: "{{ .Values.appImage }}:{{ .Values.appVersion}}"
           ports:
           - containerPort: {{ .Values.containerPort}}
+          securityContext:
+            runAsNonRoot: true
           livenessProbe:
               initialDelaySeconds: 5
               tcpSocket:
