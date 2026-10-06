@@ -3,6 +3,10 @@ appImage: gcr.io/google-samples/microservices-demo/frontend
 appVersion: v0.8.0
 appReplicas: 2
 containerPort: 8080
+httpHealthPath: /_healthz
+httpHealthHeaders:
+- name: Cookie
+  value: "shop_session-id=x-readiness-probe"
 containerEnvVars:
 - name: PORT
   value: "8080"

@@ -24,13 +24,39 @@ spec:
             - containerPort: {{ .Values.containerPort }}
           livenessProbe:
             initialDelaySeconds: 5
+            {{- if .Values.httpHealthPath }}
+            httpGet:
+              path: {{ .Values.httpHealthPath }}
+              port: {{ .Values.containerPort}}
+              {{- with .Values.httpHealthHeaders }}
+              httpHeaders:
+              {{- range . }}
+              - name: {{ .name }}
+                value: {{ .value | quote }}
+              {{- end }}
+              {{- end }}
+            {{- else }}
             grpc:
               port: {{ .Values.containerPort}}
+            {{- end }}
             periodSeconds: 5
           readinessProbe:
             initialDelaySeconds: 5
+            {{- if .Values.httpHealthPath }}
+            httpGet:
+              path: {{ .Values.httpHealthPath }}
+              port: {{ .Values.containerPort}}
+              {{- with .Values.httpHealthHeaders }}
+              httpHeaders:
+              {{- range . }}
+              - name: {{ .name }}
+                value: {{ .value | quote }}
+              {{- end }}
+              {{- end }}
+            {{- else }}
             grpc:
               port: {{ .Values.containerPort}}
+            {{- end }}
             periodSeconds: 5
           resources:
             requests: 
